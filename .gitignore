@@ -1,5 +1,10 @@
-# Model files
-*.h5
+# Dataset folders (too large for git)
+seg_train/
+seg_test/
+seg_pred/
+
+# Keep model file for deployment
+!intel_image_classifier.h5
 
 # Python cache
 __pycache__/
@@ -26,3 +31,10 @@ Thumbs.db
 *.jpg
 *.jpeg
 plots/
+
+# Debug and test files
+debug_dataset.py
+check_model.py
+simple_test.py
+test_flask.py
+start_webapp.bat
