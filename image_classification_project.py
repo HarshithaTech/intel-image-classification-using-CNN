@@ -18,8 +18,23 @@ from PIL import Image
 # ============================================================================
 
 # Set dataset paths (adjust these paths according to your dataset location)
-train_dir = 'seg_train/seg_train'
-test_dir = 'seg_test/seg_test'
+base_dir = os.path.dirname(os.path.abspath(__file__))
+train_dir = os.path.join(base_dir, 'seg_train', 'seg_train')
+test_dir = os.path.join(base_dir, 'seg_test', 'seg_test')
+
+# Check if directories exist
+if not os.path.exists(train_dir):
+    print(f"Error: Training directory not found at {train_dir}")
+    print("Please ensure the dataset is properly extracted.")
+    exit(1)
+    
+if not os.path.exists(test_dir):
+    print(f"Error: Test directory not found at {test_dir}")
+    print("Please ensure the dataset is properly extracted.")
+    exit(1)
+
+print(f"Training directory: {train_dir}")
+print(f"Test directory: {test_dir}")
 
 # Image parameters
 IMG_HEIGHT = 150
@@ -42,31 +57,45 @@ train_datagen = ImageDataGenerator(
 test_datagen = ImageDataGenerator(rescale=1./255)
 
 # Load training data
-train_generator = train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='training'
-)
+try:
+    train_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(IMG_HEIGHT, IMG_WIDTH),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        subset='training'
+    )
+except Exception as e:
+    print(f"Error loading training data: {e}")
+    print(f"Please check if the directory {train_dir} exists and contains subdirectories with images.")
+    exit(1)
 
 # Load validation data
-validation_generator = train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='validation'
-)
+try:
+    validation_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(IMG_HEIGHT, IMG_WIDTH),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        subset='validation'
+    )
+except Exception as e:
+    print(f"Error loading validation data: {e}")
+    exit(1)
 
 # Load test data
-test_generator = test_datagen.flow_from_directory(
-    test_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    shuffle=False
-)
+try:
+    test_generator = test_datagen.flow_from_directory(
+        test_dir,
+        target_size=(IMG_HEIGHT, IMG_WIDTH),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=False
+    )
+except Exception as e:
+    print(f"Error loading test data: {e}")
+    print(f"Please check if the directory {test_dir} exists and contains subdirectories with images.")
+    exit(1)
 
 print("Class indices:", train_generator.class_indices)
 
@@ -183,29 +212,44 @@ def predict_single_image(image_path, model):
     # Class names
     class_names = ['buildings', 'forest', 'glacier', 'mountain', 'sea', 'street']
     
-    # Load and preprocess the image
-    img = Image.open(image_path)
-    img = img.resize((IMG_WIDTH, IMG_HEIGHT))
-    img_array = np.array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    
-    # Make prediction
-    predictions = model.predict(img_array)
-    predicted_class_index = np.argmax(predictions[0])
-    predicted_class = class_names[predicted_class_index]
-    confidence = predictions[0][predicted_class_index]
-    
-    # Display results
-    plt.figure(figsize=(8, 6))
-    plt.imshow(img)
-    plt.title(f'Predicted: {predicted_class} (Confidence: {confidence:.2f})')
-    plt.axis('off')
-    plt.show()
-    
-    print(f"Predicted class: {predicted_class}")
-    print(f"Confidence: {confidence:.4f}")
-    
-    return predicted_class, confidence
+    try:
+        # Check if file exists
+        if not os.path.exists(image_path):
+            print(f"Error: Image file not found at {image_path}")
+            return None, None
+            
+        # Load and preprocess the image
+        img = Image.open(image_path)
+        
+        # Convert to RGB if necessary
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            
+        img = img.resize((IMG_WIDTH, IMG_HEIGHT))
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        # Make prediction
+        predictions = model.predict(img_array)
+        predicted_class_index = np.argmax(predictions[0])
+        predicted_class = class_names[predicted_class_index]
+        confidence = predictions[0][predicted_class_index]
+        
+        # Display results
+        plt.figure(figsize=(8, 6))
+        plt.imshow(img)
+        plt.title(f'Predicted: {predicted_class} (Confidence: {confidence:.2f})')
+        plt.axis('off')
+        plt.show()
+        
+        print(f"Predicted class: {predicted_class}")
+        print(f"Confidence: {confidence:.4f}")
+        
+        return predicted_class, confidence
+        
+    except Exception as e:
+        print(f"Error processing image {image_path}: {e}")
+        return None, None
 
 # Example usage (uncomment and provide a valid image path):
 # predict_single_image('path_to_your_test_image.jpg', model)

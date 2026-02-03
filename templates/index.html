@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intel Image Classifier</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; font-size: 2.5em; }
+        .upload-area { border: 3px dashed #667eea; border-radius: 10px; padding: 40px; text-align: center; margin-bottom: 30px; cursor: pointer; transition: all 0.3s; }
+        .upload-area:hover { border-color: #764ba2; background: #f8f9ff; }
+        .upload-area.dragover { border-color: #764ba2; background: #f0f4ff; }
+        #fileInput { display: none; }
+        .upload-text { font-size: 1.2em; color: #666; margin-bottom: 15px; }
+        .btn { background: linear-gradient(45deg, #667eea, #764ba2); color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 1.1em; transition: transform 0.3s; }
+        .btn:hover { transform: translateY(-2px); }
+        .result { margin-top: 30px; padding: 20px; background: #f8f9ff; border-radius: 10px; display: none; }
+        .prediction { font-size: 1.5em; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .confidence { font-size: 1.2em; color: #667eea; margin-bottom: 20px; }
+        .image-preview { max-width: 100%; height: auto; border-radius: 10px; margin-bottom: 20px; }
+        .all-predictions { margin-top: 20px; }
+        .prediction-bar { margin: 10px 0; }
+        .prediction-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .bar { height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
+        .bar-fill { height: 100%; background: linear-gradient(45deg, #667eea, #764ba2); transition: width 0.5s; }
+        .loading { display: none; text-align: center; margin-top: 20px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Intel Image Classifier</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">Upload any image to classify it into: Buildings, Forest, Glacier, Mountain, Sea, or Street</p>
+        
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-text">📁 Click here or drag & drop an image</div>
+            <button class="btn">Choose Image</button>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Analyzing image...</p>
+        </div>
+        
+        <div class="result" id="result">
+            <img id="imagePreview" class="image-preview" alt="Uploaded image">
+            <div class="prediction" id="prediction"></div>
+            <div class="confidence" id="confidence"></div>
+            <div class="all-predictions" id="allPredictions">
+                <h3>All Class Probabilities:</h3>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.querySelector('.upload-area');
+        const result = document.getElementById('result');
+        const loading = document.querySelector('.loading');
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                // Display results
+                document.getElementById('imagePreview').src = 'data:image/jpeg;base64,' + data.image;
+                document.getElementById('prediction').textContent = `Predicted Class: ${data.predicted_class.toUpperCase()}`;
+                document.getElementById('confidence').textContent = `Confidence: ${data.accuracy_percentage}`;
+
+                // Display all predictions
+                const allPredDiv = document.getElementById('allPredictions');
+                allPredDiv.innerHTML = '<h3>All Class Probabilities:</h3>';
+                
+                Object.entries(data.all_predictions).forEach(([className, probability]) => {
+                    const percentage = (probability * 100).toFixed(2);
+                    allPredDiv.innerHTML += `
+                        <div class="prediction-bar">
+                            <div class="prediction-label">
+                                <span>${className}</span>
+                                <span>${percentage}%</span>
+                            </div>
+                            <div class="bar">
+                                <div class="bar-fill" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                result.style.display = 'block';
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                alert('Error: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>
